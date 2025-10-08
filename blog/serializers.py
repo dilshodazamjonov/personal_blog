@@ -6,7 +6,7 @@ from .models import User, Category, Post, Comment
 # CATEGORY SERIALIZER
 # -----------------------------
 class CategorySerializer(serializers.ModelSerializer):
-    post_count = serializers.IntegerField(source='posts.count', read_only=True)
+    post_count = serializers.IntegerField(source='post_set.count', read_only=True)
 
     class Meta:
         model = Category
@@ -23,8 +23,6 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'post_count', 'comment_count']
-
-
 
 
 # -----------------------------
@@ -53,7 +51,7 @@ class CommentSerializer(serializers.ModelSerializer):
 # -----------------------------
 class PostListSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
-    categories = serializers.StringRelatedField(many=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
     comment_count = serializers.IntegerField(source='comments.count', read_only=True)
 
     class Meta:
@@ -62,7 +60,7 @@ class PostListSerializer(serializers.ModelSerializer):
             'id',
             'title',
             'author_username',
-            'categories',
+            'category_name',
             'comment_count',
             'created_at',
         ]
@@ -73,7 +71,7 @@ class PostListSerializer(serializers.ModelSerializer):
 # -----------------------------
 class PostDetailSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
-    categories = CategorySerializer(many=True, read_only=True)
+    category = CategorySerializer(read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     time_since_created = serializers.SerializerMethodField()
@@ -85,7 +83,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
             'title',
             'content',
             'author',
-            'categories',
+            'category',
             'comments',
             'created_at',
             'time_since_created',
@@ -103,17 +101,17 @@ class PostDetailSerializer(serializers.ModelSerializer):
 class PostCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ['title', 'content', 'categories']
+        fields = ['title', 'content', 'category']
 
     def create(self, validated_data):
         request = self.context.get('request')
-        post = Post.objects.create(author=request.user, **validated_data) # type: ignore
+        post = Post.objects.create(author=request.user, **validated_data)  # type: ignore
         return post
 
     def update(self, instance, validated_data):
         instance.title = validated_data.get('title', instance.title)
         instance.content = validated_data.get('content', instance.content)
-        if 'categories' in validated_data:
-            instance.categories.set(validated_data['categories'])
+        if 'category' in validated_data:
+            instance.category = validated_data['category']
         instance.save()
         return instance

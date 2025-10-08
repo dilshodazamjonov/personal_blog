@@ -1,7 +1,8 @@
+# blog/views.py
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -19,6 +20,7 @@ from .serializers import (
 # AUTH & USER VIEWS
 # -----------------------------
 class RegisterView(generics.CreateAPIView):
+    """Register a new user"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
@@ -44,17 +46,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 # POST VIEWSET
 # -----------------------------
 class PostViewSet(viewsets.ModelViewSet):
+    """
+    Handles all Post CRUD + custom actions (like, comment, save)
+    """
     queryset = (
         Post.objects.all()
         .select_related('author')
-        .prefetch_related('categories', 'comments', 'liked_by')
+        .prefetch_related('category', 'comments', 'liked_by', 'saved_by')
         .order_by('-created_at')
     )
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):
         """Dynamically select serializer depending on the action"""
@@ -65,11 +67,13 @@ class PostViewSet(viewsets.ModelViewSet):
         return PostDetailSerializer
 
     def perform_create(self, serializer):
+        """Set post author automatically"""
         serializer.save(author=self.request.user)
 
     # -----------------------------
     # CUSTOM ACTIONS
     # -----------------------------
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def comment(self, request, pk=None):
         """Add a comment to a post"""
@@ -99,7 +103,7 @@ class PostViewSet(viewsets.ModelViewSet):
         return Response({'message': message, 'likes': post.likes}, status=200)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save(self, request, pk=None):
+    def save_post(self, request, pk=None):
         """Toggle save/unsave for a post"""
         post = self.get_object()
         user = request.user
@@ -112,3 +116,11 @@ class PostViewSet(viewsets.ModelViewSet):
             message = "Post saved"
 
         return Response({'message': message}, status=200)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def saved(self, request):
+        """Return all posts saved by the logged-in user"""
+        user = request.user
+        saved_posts = user.saved_posts.all().select_related('author').prefetch_related('comments')
+        serializer = PostListSerializer(saved_posts, many=True)
+        return Response(serializer.data)
