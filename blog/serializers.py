@@ -94,15 +94,14 @@ class PostDetailSerializer(serializers.ModelSerializer):
 class PostCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ['title', 'content', 'category']
+        fields = ['title', 'content', 'category', 'image', 'tags']
+        read_only_fields = ['author', 'views', 'likes', 'slug', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         return Post.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
-        instance.title = validated_data.get('title', instance.title)
-        instance.content = validated_data.get('content', instance.content)
-        if 'category' in validated_data:
-            instance.category = validated_data['category']
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
         instance.save()
         return instance
