@@ -10,7 +10,6 @@ class User(AbstractUser):
     joined_at = models.DateTimeField(auto_now_add=True)
     theme = models.CharField(max_length=10, choices=[("light", "Light"), ("dark", "Dark")], default="light")
 
-
     def __str__(self):
         return self.username
     

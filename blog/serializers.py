@@ -6,24 +6,17 @@ from .models import User, Category, Post, Comment
 # CATEGORY SERIALIZER
 # -----------------------------
 class CategorySerializer(serializers.ModelSerializer):
-    post_count = serializers.IntegerField(source='post_set.count', read_only=True)
-
     class Meta:
         model = Category
-        fields = ['id', 'name', 'post_count']
-
+        fields = ['id', 'name']
 
 # -----------------------------
 # USER SERIALIZER
 # -----------------------------
 class UserSerializer(serializers.ModelSerializer):
-    post_count = serializers.IntegerField(source='posts.count', read_only=True)
-    comment_count = serializers.IntegerField(source='comments.count', read_only=True)
-
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'post_count', 'comment_count']
-
+        fields = ['id', 'username', 'email', 'avatar', 'bio']
 
 # -----------------------------
 # COMMENT SERIALIZER
@@ -104,9 +97,7 @@ class PostCreateUpdateSerializer(serializers.ModelSerializer):
         fields = ['title', 'content', 'category']
 
     def create(self, validated_data):
-        request = self.context.get('request')
-        post = Post.objects.create(author=request.user, **validated_data)  # type: ignore
-        return post
+        return Post.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
         instance.title = validated_data.get('title', instance.title)

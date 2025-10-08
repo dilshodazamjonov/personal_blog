@@ -1,24 +1,26 @@
-# blog/views.py
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (
+    IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly, IsAdminUser
+)
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Post, User
+from .models import Post, User, Category
 from .serializers import (
     UserSerializer,
     PostListSerializer,
     PostDetailSerializer,
     PostCreateUpdateSerializer,
     CommentSerializer,
+    CategorySerializer,
 )
 
-
-# -----------------------------
+# =============================================================
 # AUTH & USER VIEWS
-# -----------------------------
+# =============================================================
+
 class RegisterView(generics.CreateAPIView):
     """Register a new user"""
     queryset = User.objects.all()
@@ -42,20 +44,67 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-# -----------------------------
+# =============================================================
+# USER VIEWSET
+# =============================================================
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    Admins: full CRUD on all users
+    Authenticated users: view or edit their own profile
+    """
+    queryset = User.objects.all().order_by('-date_joined')
+    serializer_class = UserSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'destroy']:
+            permission_classes = [IsAdminUser]
+        elif self.action in ['retrieve', 'update', 'partial_update']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [AllowAny]
+        return [perm() for perm in permission_classes]
+
+    def get_queryset(self):
+        """Users can see all if admin, else only themselves"""
+        user = self.request.user
+        if user.is_staff:
+            return User.objects.all()
+        return User.objects.filter(id=user.pk)
+
+
+# =============================================================
+# CATEGORY VIEWSET
+# =============================================================
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for blog categories.
+    Anyone can list, only admin can create/update/delete.
+    """
+    queryset = Category.objects.all().order_by('name')
+    serializer_class = CategorySerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return [AllowAny()]
+
+
+# =============================================================
 # POST VIEWSET
-# -----------------------------
+# =============================================================
+
 class PostViewSet(viewsets.ModelViewSet):
     """
     Handles all Post CRUD + custom actions (like, comment, save)
     """
     queryset = (
         Post.objects.all()
-        .select_related('author')
-        .prefetch_related('category', 'comments', 'liked_by', 'saved_by')
+        .select_related('author', 'category')
+        .prefetch_related('comments', 'liked_by', 'saved_by')
         .order_by('-created_at')
     )
-
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):
@@ -73,7 +122,6 @@ class PostViewSet(viewsets.ModelViewSet):
     # -----------------------------
     # CUSTOM ACTIONS
     # -----------------------------
-
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def comment(self, request, pk=None):
         """Add a comment to a post"""
